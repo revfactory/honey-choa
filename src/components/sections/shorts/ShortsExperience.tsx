@@ -61,15 +61,11 @@ interface ShortsExperienceProps {
 export function ShortsExperience({ shorts, genreFacets }: ShortsExperienceProps) {
   const router = useRouter();
   const [genre, setGenre] = useState<Genre | null>(null);
-  const [deepLinkV, setDeepLinkV] = useState<string | null>(null);
-  // 랜덤(무한) 재생 토글 + 끝없이 이어지는 무작위 시퀀스.
-  const [random, setRandom] = useState(false);
+  // 숏츠는 항상 무한 랜덤 재생. 끝없이 이어지는 무작위 시퀀스.
   const [randomSeq, setRandomSeq] = useState<ContentCard[]>([]);
-  const [epoch, setEpoch] = useState(0); // 토글/재생성마다 증가 → 엔진 리셋 키
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setDeepLinkV(params.get("v"));
     const g = params.get("genre");
     if (g && (GENRE_ORDER as string[]).includes(g)) setGenre(g as Genre);
   }, []);
@@ -80,10 +76,10 @@ export function ShortsExperience({ shorts, genreFacets }: ShortsExperienceProps)
     [shorts, genre]
   );
 
-  // 랜덤 ON이거나 풀(장르)·epoch 변경 시 무작위 시퀀스를 새로 시드(첫 배치).
+  // 풀(장르) 변경 또는 마운트 시 새 무작위 시퀀스로 시드(첫 배치).
   useEffect(() => {
-    setRandomSeq(random ? pickRandomBatch(filtered, RANDOM_INIT, null) : []);
-  }, [random, epoch, filtered]);
+    setRandomSeq(pickRandomBatch(filtered, RANDOM_INIT, null));
+  }, [filtered]);
 
   // 끝 근처 도달 시 호출(엔진) → 새 무작위 영상을 계속 이어붙여 무한 재생.
   const appendRandom = useCallback(() => {
@@ -97,23 +93,11 @@ export function ShortsExperience({ shorts, genreFacets }: ShortsExperienceProps)
     );
   }, [filtered]);
 
-  const toggleRandom = () => {
-    setRandom((v) => !v);
-    setEpoch((e) => e + 1);
-  };
+  // 무작위 시퀀스(아직 비었으면 첫 프레임만 인기순 폴백).
+  const ordered = randomSeq.length ? randomSeq : filtered;
 
-  // 랜덤 ON: 무작위 시퀀스(아직 비었으면 한 프레임만 인기순 폴백). OFF: 인기순.
-  const ordered = random ? (randomSeq.length ? randomSeq : filtered) : filtered;
-
-  // 목록 "교체"(필터/랜덤 전환)에만 리셋. 이어붙이기(길이 증가)는 키가 고정이라 리셋 안 함.
-  const resetKey = `${genre ?? "all"}::${random ? "rnd" + epoch : "pop"}`;
-
-  // 딥링크 v → 표시 순서 내 인덱스(랜덤이거나 사라졌으면 0).
-  const initialIndex = useMemo(() => {
-    if (random || !deepLinkV) return 0;
-    const i = ordered.findIndex((s) => s.videoId === deepLinkV);
-    return i >= 0 ? i : 0;
-  }, [random, ordered, deepLinkV]);
+  // 장르 "교체"에만 첫 슬라이드로 리셋. 이어붙이기(길이 증가)는 키가 고정이라 리셋 안 함.
+  const resetKey = `${genre ?? "all"}::rnd`;
 
   const close = () => {
     if (typeof window !== "undefined" && window.history.length > 1) router.back();
@@ -128,47 +112,20 @@ export function ShortsExperience({ shorts, genreFacets }: ShortsExperienceProps)
       <h1 className="sr-only">숏츠</h1>
       <ShortsFeed
         shorts={ordered}
-        initialIndex={initialIndex}
         resetKey={resetKey}
-        onNearEnd={random ? appendRandom : undefined}
+        onNearEnd={appendRandom}
       renderChrome={() => (
         <div className="flex items-start justify-between gap-[var(--space-3)] p-[var(--space-4)] pt-[max(var(--space-4),env(safe-area-inset-top))]">
-          <div className="flex shrink-0 items-center gap-[var(--space-2)]">
-            <button
-              type="button"
-              onClick={close}
-              aria-label="닫기"
-              className="grid size-10 shrink-0 place-items-center rounded-full bg-[var(--overlay-scrim)] text-[var(--text-primary)] backdrop-blur-sm"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-                <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              onClick={toggleRandom}
-              aria-label={random ? "랜덤 재생 끄기" : "랜덤 재생 켜기"}
-              aria-pressed={random}
-              title="랜덤 재생"
-              className={cn(
-                "grid size-10 shrink-0 place-items-center rounded-full backdrop-blur-sm transition-colors",
-                random
-                  ? "bg-[var(--honey-400)] text-[var(--text-on-honey)]"
-                  : "bg-[var(--overlay-scrim)] text-[var(--text-primary)]"
-              )}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
-                <path
-                  d="M3 6h3.5c1.5 0 2.8.8 3.6 2l2.8 4c.8 1.2 2.1 2 3.6 2H21M3 18h3.5c1.5 0 2.8-.8 3.6-2M14.5 8.5L13.8 8M21 6l-2.5 2M21 6l-2.5-2M21 18l-2.5 2M21 18l-2.5-2"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  fill="none"
-                />
-              </svg>
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={close}
+            aria-label="닫기"
+            className="grid size-10 shrink-0 place-items-center rounded-full bg-[var(--overlay-scrim)] text-[var(--text-primary)] backdrop-blur-sm"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden>
+              <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+            </svg>
+          </button>
 
           {/* genre 필터칩(가로 스크롤) */}
           <div className="flex max-w-[70vw] gap-[var(--space-2)] overflow-x-auto rounded-[var(--radius-chip)] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
