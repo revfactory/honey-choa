@@ -189,14 +189,14 @@ export function LibraryBrowser({ cards, facets }: LibraryBrowserProps) {
           />
           {LIBRARY_TYPE_ORDER.map((t) => {
             const count = facets.byType[t] ?? 0;
+            if (count === 0) return null;
             return (
               <FilterChip
                 key={t}
                 label={TYPE_LABEL[t]}
                 count={count}
                 active={type === t}
-                onClick={() => count > 0 && setType(type === t ? null : t)}
-                className={count === 0 ? "pointer-events-none opacity-40" : undefined}
+                onClick={() => setType(type === t ? null : t)}
               />
             );
           })}
