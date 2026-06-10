@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ShortsFeed } from "@/components/player";
 import { ShortsOverlay } from "@/components/sections/shorts/ShortsOverlay";
@@ -17,25 +17,29 @@ const DOT_COLOR: Record<string, string> = {
   muted: "var(--text-muted)",
 };
 
-/** 시드 기반 PRNG(mulberry32) — 동일 시드면 동일 순서(렌더 안정성 보장). */
-function mulberry32(seed: number): () => number {
-  let a = seed >>> 0;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
+/** 랜덤 재생 초기/추가 공급 배치 크기. */
+const RANDOM_INIT = 40;
+const RANDOM_MORE = 40;
 
-/** 결정적 Fisher–Yates 셔플 — 원본 불변, 새 배열 반환. */
-function seededShuffle<T>(items: T[], seed: number): T[] {
-  const rand = mulberry32(seed);
-  const out = items.slice();
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(rand() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
+/**
+ * pool 에서 n개를 무작위로 뽑아 잇는다(바로 앞 영상 즉시 반복만 회피).
+ * 무한 랜덤 피드 공급용 — 매번 진짜 무작위, 중복 허용(끝없이 이어짐).
+ */
+function pickRandomBatch(
+  pool: ContentCard[],
+  n: number,
+  avoidId: string | null
+): ContentCard[] {
+  if (pool.length === 0) return [];
+  const out: ContentCard[] = [];
+  let last = avoidId;
+  for (let i = 0; i < n; i++) {
+    let pick = pool[Math.floor(Math.random() * pool.length)];
+    if (pool.length > 1 && pick.videoId === last) {
+      pick = pool[Math.floor(Math.random() * pool.length)];
+    }
+    out.push(pick);
+    last = pick.videoId;
   }
   return out;
 }
@@ -58,8 +62,10 @@ export function ShortsExperience({ shorts, genreFacets }: ShortsExperienceProps)
   const router = useRouter();
   const [genre, setGenre] = useState<Genre | null>(null);
   const [deepLinkV, setDeepLinkV] = useState<string | null>(null);
-  // 랜덤 재생: null=인기순(기본), 숫자=셔플 시드. 토글 켤 때마다 새 시드로 다시 섞는다.
-  const [shuffleSeed, setShuffleSeed] = useState<number | null>(null);
+  // 랜덤(무한) 재생 토글 + 끝없이 이어지는 무작위 시퀀스.
+  const [random, setRandom] = useState(false);
+  const [randomSeq, setRandomSeq] = useState<ContentCard[]>([]);
+  const [epoch, setEpoch] = useState(0); // 토글/재생성마다 증가 → 엔진 리셋 키
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -74,23 +80,40 @@ export function ShortsExperience({ shorts, genreFacets }: ShortsExperienceProps)
     [shorts, genre]
   );
 
-  // 랜덤 재생 시 셔플(시드 고정 → 렌더마다 순서 유지). 끄면 인기순 그대로.
-  const ordered = useMemo(
-    () => (shuffleSeed === null ? filtered : seededShuffle(filtered, shuffleSeed)),
-    [filtered, shuffleSeed]
-  );
+  // 랜덤 ON이거나 풀(장르)·epoch 변경 시 무작위 시퀀스를 새로 시드(첫 배치).
+  useEffect(() => {
+    setRandomSeq(random ? pickRandomBatch(filtered, RANDOM_INIT, null) : []);
+  }, [random, epoch, filtered]);
 
-  const toggleShuffle = () =>
-    setShuffleSeed((prev) =>
-      prev === null ? Math.floor(Math.random() * 0x7fffffff) : null
+  // 끝 근처 도달 시 호출(엔진) → 새 무작위 영상을 계속 이어붙여 무한 재생.
+  const appendRandom = useCallback(() => {
+    setRandomSeq((prev) =>
+      prev.length === 0
+        ? prev
+        : [
+            ...prev,
+            ...pickRandomBatch(filtered, RANDOM_MORE, prev[prev.length - 1].videoId),
+          ]
     );
+  }, [filtered]);
 
-  // 딥링크 v → 표시 순서 내 인덱스(필터/셔플로 사라졌으면 0).
+  const toggleRandom = () => {
+    setRandom((v) => !v);
+    setEpoch((e) => e + 1);
+  };
+
+  // 랜덤 ON: 무작위 시퀀스(아직 비었으면 한 프레임만 인기순 폴백). OFF: 인기순.
+  const ordered = random ? (randomSeq.length ? randomSeq : filtered) : filtered;
+
+  // 목록 "교체"(필터/랜덤 전환)에만 리셋. 이어붙이기(길이 증가)는 키가 고정이라 리셋 안 함.
+  const resetKey = `${genre ?? "all"}::${random ? "rnd" + epoch : "pop"}`;
+
+  // 딥링크 v → 표시 순서 내 인덱스(랜덤이거나 사라졌으면 0).
   const initialIndex = useMemo(() => {
-    if (!deepLinkV) return 0;
+    if (random || !deepLinkV) return 0;
     const i = ordered.findIndex((s) => s.videoId === deepLinkV);
     return i >= 0 ? i : 0;
-  }, [ordered, deepLinkV]);
+  }, [random, ordered, deepLinkV]);
 
   const close = () => {
     if (typeof window !== "undefined" && window.history.length > 1) router.back();
@@ -106,6 +129,8 @@ export function ShortsExperience({ shorts, genreFacets }: ShortsExperienceProps)
       <ShortsFeed
         shorts={ordered}
         initialIndex={initialIndex}
+        resetKey={resetKey}
+        onNearEnd={random ? appendRandom : undefined}
       renderChrome={() => (
         <div className="flex items-start justify-between gap-[var(--space-3)] p-[var(--space-4)] pt-[max(var(--space-4),env(safe-area-inset-top))]">
           <div className="flex shrink-0 items-center gap-[var(--space-2)]">
@@ -121,13 +146,13 @@ export function ShortsExperience({ shorts, genreFacets }: ShortsExperienceProps)
             </button>
             <button
               type="button"
-              onClick={toggleShuffle}
-              aria-label={shuffleSeed === null ? "랜덤 재생 켜기" : "랜덤 재생 끄기"}
-              aria-pressed={shuffleSeed !== null}
+              onClick={toggleRandom}
+              aria-label={random ? "랜덤 재생 끄기" : "랜덤 재생 켜기"}
+              aria-pressed={random}
               title="랜덤 재생"
               className={cn(
                 "grid size-10 shrink-0 place-items-center rounded-full backdrop-blur-sm transition-colors",
-                shuffleSeed !== null
+                random
                   ? "bg-[var(--honey-400)] text-[var(--text-on-honey)]"
                   : "bg-[var(--overlay-scrim)] text-[var(--text-primary)]"
               )}

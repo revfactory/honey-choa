@@ -50,6 +50,17 @@ export interface ShortsFeedProps {
   renderChrome?: (activeIndex: number, total: number) => React.ReactNode;
   /** 빈 상태(필터 0건) 슬롯. 미지정 시 기본 메시지. */
   emptyState?: React.ReactNode;
+  /**
+   * 리셋 키 — 값이 바뀌면 첫 슬라이드로 재설정(필터·랜덤 전환 등 "목록 교체").
+   * 미지정 시 shorts 참조 변화로 리셋. 무한 랜덤처럼 목록을 "이어붙이는" 경우엔
+   * 이 키를 고정해 두면 추가 시 스크롤이 처음으로 튀지 않는다.
+   */
+  resetKey?: string | number;
+  /**
+   * 끝 근처 도달 콜백 — 무한 피드용. 호출부가 shorts 뒤에 항목을 더 이어붙인다.
+   * (랜덤 재생 시 새 무작위 영상을 계속 공급)
+   */
+  onNearEnd?: () => void;
   className?: string;
 }
 
@@ -59,6 +70,8 @@ export function ShortsFeed({
   renderOverlay,
   renderChrome,
   emptyState,
+  resetKey,
+  onNearEnd,
   className,
 }: ShortsFeedProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -96,8 +109,10 @@ export function ShortsFeed({
         slideRefs.current[start]?.scrollIntoView({ block: "start" })
       );
     }
-    // shorts 참조(필터 부분집합)와 initialIndex 변경에 반응
-  }, [shorts, initialIndex]);
+    // resetKey(목록 교체) 또는 initialIndex 변경에만 반응. resetKey 미지정 시 shorts 참조로.
+    // → 무한 랜덤의 "이어붙이기"(shorts 길이만 증가)는 resetKey 가 고정이라 리셋되지 않는다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetKey ?? shorts, initialIndex]);
 
   // 활성 인덱스 추적 — IntersectionObserver(가시 50%+ 인 슬라이드가 active).
   useEffect(() => {
@@ -126,6 +141,14 @@ export function ShortsFeed({
       setVisibleCount((v) => Math.min(total, v + BATCH));
     }
   }, [activeIndex, visibleCount, total]);
+
+  // 무한 피드: 목록 실제 끝 근처면 호출부에 추가 공급 요청(랜덤 재생).
+  // total 이 늘면 조건이 다시 false 가 되어 자연히 한 배치씩만 요청된다.
+  useEffect(() => {
+    if (onNearEnd && total > 0 && activeIndex >= total - LOAD_AHEAD) {
+      onNearEnd();
+    }
+  }, [onNearEnd, activeIndex, total]);
 
   // 키보드 ↑↓ 전환(데스크탑). 네이티브 스크롤로 위임 → snap 이 정렬.
   const go = useCallback(
