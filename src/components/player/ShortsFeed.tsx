@@ -28,6 +28,7 @@ import type { ContentCard } from "@/types/content";
 import {
   buildEmbedUrl,
   EMBED_ALLOW,
+  postPlayerCommand,
   youtubeWatchUrl,
 } from "./youtube";
 
@@ -64,6 +65,9 @@ export function ShortsFeed({
   const slideRefs = useRef<Array<HTMLDivElement | null>>([]);
 
   const [activeIndex, setActiveIndex] = useState(initialIndex);
+  // 전역 소리 토글. 자동재생 보장을 위해 음소거로 시작하고, 사용자 제스처(탭)로 켠다.
+  // 한 번 켜면 이후 슬라이드에도 유지(YouTube Shorts/TikTok 패턴).
+  const [soundOn, setSoundOn] = useState(false);
   // 점진 로드: 초기엔 initialIndex 를 덮는 최소 윈도우만, 이후 스크롤로 확장
   const [visibleCount, setVisibleCount] = useState(() =>
     Math.min(shorts.length, Math.max(initialIndex + 1 + BATCH, BATCH))
@@ -163,6 +167,17 @@ export function ShortsFeed({
         <NavArrow dir="down" disabled={activeIndex >= total - 1} onClick={() => go(1)} />
       </div>
 
+      {/* 전역 소리 토글 — 우하단(safe-area). 오버레이 메타는 좌하단이라 충돌 없음 */}
+      <button
+        type="button"
+        onClick={() => setSoundOn((v) => !v)}
+        aria-label={soundOn ? "소리 끄기" : "소리 켜기"}
+        aria-pressed={soundOn}
+        className="pointer-events-auto absolute bottom-[calc(env(safe-area-inset-bottom)+1.25rem)] right-4 z-20 flex h-11 w-11 items-center justify-center rounded-full bg-[var(--overlay-scrim)] text-[var(--text-primary)] backdrop-blur-sm transition-opacity hover:opacity-90"
+      >
+        <SoundIcon on={soundOn} />
+      </button>
+
       {/* 스크롤 컨테이너 — scroll-snap 세로. 가시 영역만 의미있게 렌더(가상 스크롤) */}
       <div
         ref={containerRef}
@@ -188,6 +203,7 @@ export function ShortsFeed({
                 index={index}
                 active={active}
                 withinThumb={withinThumb}
+                soundOn={soundOn}
                 overlay={renderOverlay?.(card, index, active)}
               />
             </div>
@@ -208,20 +224,37 @@ function ShortSlide({
   card,
   active,
   withinThumb,
+  soundOn,
   overlay,
 }: {
   card: ContentCard;
   index: number;
   active: boolean;
   withinThumb: boolean;
+  soundOn: boolean;
   overlay?: React.ReactNode;
 }) {
   const [origin, setOrigin] = useState<string | undefined>(undefined);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
   useEffect(() => {
     if (typeof window !== "undefined") setOrigin(window.location.origin);
   }, []);
 
   const showIframe = active && card.embeddable;
+
+  // 소리 적용: iframe 은 항상 mute=1 로 마운트(자동재생 보장)되므로,
+  // 활성 슬라이드에서 soundOn 이면 IFrame API(unMute)로 음소거를 푼다.
+  // 플레이어 초기화 타이밍 편차를 흡수하려 약간의 지연 재시도를 둔다.
+  useEffect(() => {
+    if (!showIframe) return;
+    const apply = () => {
+      postPlayerCommand(iframeRef.current, soundOn ? "unMute" : "mute");
+      if (soundOn) postPlayerCommand(iframeRef.current, "playVideo");
+    };
+    apply();
+    const t = setTimeout(apply, 350);
+    return () => clearTimeout(t);
+  }, [showIframe, soundOn]);
 
   // 9:16 비율 컬럼: 모바일은 풀스크린, 데스크탑/태블릿은 중앙 고정폭 레터박스(spec §7.6)
   return (
@@ -229,10 +262,11 @@ function ShortSlide({
       <div className="relative mx-auto h-full w-full overflow-hidden bg-black md:aspect-[9/16] md:h-[min(92dvh,calc(100vw*16/9*0.5))] md:w-auto md:rounded-[var(--radius-card)]">
         {showIframe ? (
           <iframe
+            ref={iframeRef}
             className="absolute inset-0 h-full w-full border-0"
             src={buildEmbedUrl(card.videoId, {
               autoplay: true,
-              muted: true, // 모바일 자동재생 보장(음소거 필수 — 플랫폼 정책)
+              muted: true, // 모바일 자동재생 보장(음소거 필수 — 플랫폼 정책). 소리는 unMute API로 해제
               controls: false, // 숏츠 몰입
               loop: true,
               noRelated: true,
@@ -243,6 +277,12 @@ function ShortSlide({
             allow={EMBED_ALLOW}
             allowFullScreen
             loading="eager"
+            onLoad={() => {
+              if (active && soundOn) {
+                postPlayerCommand(iframeRef.current, "unMute");
+                postPlayerCommand(iframeRef.current, "playVideo");
+              }
+            }}
           />
         ) : !card.embeddable && active ? (
           // 폴백: 임베드 차단 숏츠 → 썸네일 + YouTube 링크(spec §7.5)
@@ -314,6 +354,37 @@ function FallbackThumb({
       />
       {children}
     </>
+  );
+}
+
+function SoundIcon({ on }: { on: boolean }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M4 9v6h4l5 4V5L8 9H4z"
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+      {on ? (
+        <path
+          d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8 8 0 0 1 0 12"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          fill="none"
+        />
+      ) : (
+        <path
+          d="M22 9l-5 6M17 9l5 6"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          fill="none"
+        />
+      )}
+    </svg>
   );
 }
 
