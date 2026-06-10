@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { cn } from "@/lib/cn";
 
 /**
@@ -28,6 +28,23 @@ export function ContentRail({
     if (!el) return;
     el.scrollBy({ left: dir * Math.round(el.clientWidth * 0.8), behavior: "smooth" });
   };
+
+  // 가로 레일이 세로 휠을 가로 스크롤로 가로채(특히 Chrome) 페이지 세로 스크롤이
+  // 막히는 문제 방지. 세로 의도(|deltaY|>|deltaX|)인 휠은 기본동작을 취소하고
+  // 페이지를 직접 스크롤해 레일을 통과시킨다. 가로 의도 휠은 그대로 레일이 스크롤.
+  useEffect(() => {
+    const el = trackRef.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (e.deltaMode !== 0) return; // 픽셀 단위 델타만 처리(라인/페이지 모드는 네이티브에 위임)
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return; // 가로 의도 → 레일 스크롤 허용
+      if (el.scrollWidth <= el.clientWidth) return; // 가로 넘침 없으면 브라우저가 가로채지 않음
+      e.preventDefault();
+      window.scrollBy({ top: e.deltaY });
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
 
   const items = Array.isArray(children) ? children : [children];
 
