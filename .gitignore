@@ -1,0 +1,23 @@
+# dependencies
+/node_modules
+
+# next.js
+/.next/
+/out/
+next-env.d.ts
+
+# typescript
+*.tsbuildinfo
+
+# build-time copied data (source of truth is /data)
+/public/data/
+
+# misc
+.DS_Store
+*.log
+.env*.local
+.idea
+
+# sync 임시 디렉토리 (api-engineer)
+.sync-staging/
+.sync-backup/

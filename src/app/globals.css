@@ -1,0 +1,277 @@
+/* ===========================================================================
+ * 한글 웹폰트 — Pretendard Variable (동적 서브셋, woff2)
+ * design_system §3: woff2 subset + font-display: swap 필수(FOIT 방지).
+ *
+ * M1(Phase 4): 기존 gh/ (GitHub raw) 경로는 dist 미커밋으로 404.
+ *   → npm 배포본의 "동적 서브셋 CSS" 를 사용한다. 이 CSS 는 글자를 unicode-range
+ *     단위 woff2 로 쪼개 실제 사용 글리프만 로드하며(전체 2MB 회피), 각 @font-face 에
+ *     font-display: swap 이 포함돼 있다. CSS @import 는 모든 규칙보다 앞서야 하므로
+ *     tailwindcss import 보다 위에 둔다.
+ * Paperlogy(display)는 수급 가능 시에만 — 미수급 시 Pretendard 800 폴백
+ *   (var(--font-display) 폴백 체인이 처리, 빌드를 막지 않는다).
+ * ======================================================================== */
+@import url("https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.css");
+
+@import "tailwindcss";
+
+/* ===========================================================================
+ * 꿀초아tv 디자인 토큰 — "Stage Light, Latin Heat"
+ * 단일 진실원: _workspace/02_design_system.md §2~6 / honey-choa-design-system 스킬.
+ * 임의 hex 인라인 금지. 토큰을 추가하고 design_system §2 대비표를 갱신할 것.
+ * ======================================================================== */
+
+:root {
+  /* === 무대 (배경 계열, 웜 블랙) === */
+  --stage-950: #0a0908;
+  --stage-900: #141210;
+  --stage-850: #191613;
+  --stage-800: #1e1b17;
+  --stage-750: #252119;
+  --stage-700: #2b2722;
+  --stage-600: #3a352e;
+
+  /* === 꿀 (브랜드 메인 액센트) === */
+  --honey-200: #ffe3a8;
+  --honey-300: #ffd479;
+  --honey-400: #ffb938;
+  --honey-500: #f59e0b;
+  --honey-600: #c97e08;
+  --honey-glow: rgba(255, 185, 56, 0.15);
+  --honey-glow-strong: rgba(255, 185, 56, 0.28);
+
+  /* === 열기 (라틴 보조 액센트) === */
+  --heat-400: #ff6b5e;
+  --heat-500: #f0473a;
+  --heat-glow: rgba(255, 107, 94, 0.16);
+  --rose-400: #ff8ba0;
+
+  /* === 기능 보조 === */
+  --mint-400: #4ade80;
+  --sky-400: #5ab9f0;
+
+  /* === 시맨틱 === */
+  --success: #4ade80;
+  --warning: #ffb938;
+  --danger: #ff6b5e;
+  --info: #5ab9f0;
+
+  /* === 텍스트 === */
+  --text-primary: #f5f1ea;
+  --text-secondary: #b5ada1;
+  --text-muted: #847d72;
+  --text-on-honey: #1a1408;
+  --text-link: #ffd479;
+
+  /* === 표면 유틸 === */
+  --overlay-scrim: rgba(10, 9, 8, 0.72);
+  --thumb-veil: linear-gradient(180deg, transparent 40%, rgba(10, 9, 8, 0.85) 100%);
+
+  /* === 타이포 === */
+  --font-display: "Paperlogy", "Pretendard Variable", sans-serif;
+  --font-body: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-num: "Pretendard Variable", system-ui, sans-serif;
+
+  --text-hero: clamp(2.5rem, 6vw, 4.5rem);
+  --text-h1: clamp(2rem, 4.5vw, 3rem);
+  --text-h2: clamp(1.625rem, 3.5vw, 2.25rem);
+  --text-h3: 1.25rem;
+  --text-lg: 1.125rem;
+  --text-base: 1rem;
+  --text-sm: 0.875rem;
+  --text-xs: 0.75rem;
+
+  /* === 간격 (4px 기수) === */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
+  --space-32: 128px;
+
+  /* === 레이아웃 === */
+  --section-py-desktop: 96px;
+  --section-py-mobile: 64px;
+  --content-max: 1280px;
+  --gutter: clamp(16px, 4vw, 40px);
+
+  /* === Radius === */
+  --radius-thumb: 12px;
+  --radius-card: 16px;
+  --radius-chip: 9999px;
+  --radius-badge: 6px;
+  --radius-input: 10px;
+
+  /* === 글로우 / 그림자 === */
+  --glow-sm: 0 0 0 1px var(--stage-700);
+  --glow-honey: 0 0 24px var(--honey-glow), 0 0 0 1px var(--honey-glow-strong);
+  --glow-card-hover: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--honey-glow-strong);
+  --shadow-sm: 0 1px 2px rgba(28, 24, 19, 0.06);
+  --shadow-md: 0 4px 16px rgba(28, 24, 19, 0.1);
+
+  /* === z-index === */
+  --z-base: 0;
+  --z-card-hover: 1;
+  --z-sticky-nav: 100;
+  --z-dropdown: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+
+  /* === 모션 === */
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-exit: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-hover: ease-out;
+  --ease-beat: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --dur-micro: 0.2s;
+  --dur-enter: 0.6s;
+  --dur-page: 0.4s;
+  --dur-ambient: 9s;
+  --motion-lift: -4px;
+  --motion-scale-beat: 1.03;
+  --motion-stagger: 60ms;
+}
+
+/* === 라이트 모드 (Opt-in) === */
+[data-theme="light"] {
+  --stage-950: #fbf7f0;
+  --stage-900: #f4eee3;
+  --stage-850: #f7f1e7;
+  --stage-800: #ffffff;
+  --stage-750: #fffbf3;
+  --stage-700: #e7dfd0;
+  --stage-600: #d2c8b6;
+
+  --honey-400: #e08c00;
+  --honey-500: #c97e08;
+  --honey-glow: rgba(224, 140, 0, 0.12);
+  --honey-glow-strong: rgba(224, 140, 0, 0.22);
+
+  --heat-400: #e0483b;
+  --mint-400: #1f9d52;
+  --sky-400: #1e84c4;
+
+  --text-primary: #1c1813;
+  --text-secondary: #575147;
+  --text-muted: #7a7264;
+  --text-on-honey: #1a1408;
+  --text-link: #b45a00;
+}
+
+/* ===========================================================================
+ * Tailwind v4 @theme — 토큰을 유틸리티로 노출(bg-stage-800, text-honey-400 등)
+ * 색은 CSS 변수를 참조하므로 라이트/다크 토글이 그대로 반영된다.
+ * ======================================================================== */
+@theme inline {
+  --color-stage-950: var(--stage-950);
+  --color-stage-900: var(--stage-900);
+  --color-stage-850: var(--stage-850);
+  --color-stage-800: var(--stage-800);
+  --color-stage-750: var(--stage-750);
+  --color-stage-700: var(--stage-700);
+  --color-stage-600: var(--stage-600);
+
+  --color-honey-200: var(--honey-200);
+  --color-honey-300: var(--honey-300);
+  --color-honey-400: var(--honey-400);
+  --color-honey-500: var(--honey-500);
+  --color-honey-600: var(--honey-600);
+
+  --color-heat-400: var(--heat-400);
+  --color-heat-500: var(--heat-500);
+  --color-rose-400: var(--rose-400);
+  --color-mint-400: var(--mint-400);
+  --color-sky-400: var(--sky-400);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-on-honey: var(--text-on-honey);
+  --color-text-link: var(--text-link);
+
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+  --font-num: var(--font-num);
+
+  --radius-thumb: var(--radius-thumb);
+  --radius-card: var(--radius-card);
+  --radius-chip: var(--radius-chip);
+  --radius-badge: var(--radius-badge);
+  --radius-input: var(--radius-input);
+}
+
+/* ===========================================================================
+ * 베이스 스타일
+ * ======================================================================== */
+* {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  background: var(--stage-950);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-base);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* 숫자(조회수·재생시간) 정렬 흔들림 방지 */
+.tabular {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* 포커스 가시성(디자인 시스템 §5.4) */
+:focus-visible {
+  outline: 2px solid var(--honey-400);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* M4: 본문 건너뛰기 링크 — 포커스 시에만 노출(키보드 a11y) */
+.skip-link {
+  position: fixed;
+  top: var(--space-2);
+  left: var(--space-2);
+  z-index: var(--z-toast);
+  transform: translateY(-150%);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-input);
+  background: var(--honey-400);
+  color: var(--text-on-honey);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  transition: transform var(--dur-micro) var(--ease-hover);
+}
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+/* 모션 접근성 — 모든 모션의 전역 폴백(design_system §6 접근성) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
