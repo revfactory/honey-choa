@@ -75,14 +75,29 @@ export function ShortsFeed({
 
   const total = shorts.length;
 
-  // 딥링크: 초기 인덱스로 즉시 스크롤(스무스 아님 — 진입은 점프).
+  // 목록(필터) 변경 또는 딥링크 시 엔진 상태 재설정.
+  // 필터로 목록이 짧아지면 이전 activeIndex 가 범위를 벗어나 어떤 슬라이드도 active 가
+  // 아니게 되고 → iframe 미마운트로 재생이 멈춘다. shorts/initialIndex 변경마다
+  // 활성 인덱스·가시 윈도우·스크롤 위치를 시작 슬라이드로 되돌려 이를 방지한다.
   useEffect(() => {
-    if (initialIndex > 0 && slideRefs.current[initialIndex]) {
-      slideRefs.current[initialIndex]?.scrollIntoView({ block: "start" });
-      setActiveIndex(initialIndex);
+    const start =
+      initialIndex >= 0 && initialIndex < shorts.length ? initialIndex : 0;
+    setActiveIndex(start);
+    setVisibleCount(
+      Math.min(shorts.length, Math.max(start + 1 + BATCH, BATCH))
+    );
+    const container = containerRef.current;
+    if (!container) return;
+    if (start === 0) {
+      container.scrollTop = 0; // 새 목록의 첫 슬라이드를 즉시 노출(스크롤 어긋남 방지)
+    } else {
+      // 딥링크 등 start>0: 레이아웃 반영 후 해당 슬라이드로 점프
+      requestAnimationFrame(() =>
+        slideRefs.current[start]?.scrollIntoView({ block: "start" })
+      );
     }
-    // initialIndex 변경(필터 재구성)에만 반응
-  }, [initialIndex]);
+    // shorts 참조(필터 부분집합)와 initialIndex 변경에 반응
+  }, [shorts, initialIndex]);
 
   // 활성 인덱스 추적 — IntersectionObserver(가시 50%+ 인 슬라이드가 active).
   useEffect(() => {
@@ -102,7 +117,8 @@ export function ShortsFeed({
     const els = slideRefs.current.slice(0, visibleCount).filter(Boolean) as HTMLElement[];
     els.forEach((el) => io.observe(el));
     return () => io.disconnect();
-  }, [visibleCount]);
+    // shorts(필터 부분집합) 변경 시 새 슬라이드 요소를 다시 관찰해야 활성 추적이 끊기지 않는다
+  }, [visibleCount, shorts]);
 
   // 점진 로드: active 가 끝 근처(LOAD_AHEAD)면 다음 배치 노출.
   useEffect(() => {
